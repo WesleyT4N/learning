@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 )
 
@@ -15,7 +16,7 @@ func TestGETPlayers(t *testing.T) {
 		},
 		nil,
 	}
-	server := &PlayerServer{&store}
+	server := &PlayerServer{&store, sync.Mutex{}}
 
 	t.Run("returns Pepper's score", func(t *testing.T) {
 		request := newGetScoreRequest("Pepper")
@@ -51,9 +52,11 @@ func TestStoreWins(t *testing.T) {
 		map[string]int{},
 		nil,
 	}
-	server := &PlayerServer{&store}
+	server := &PlayerServer{&store, sync.Mutex{}}
 
 	t.Run("it records wins on POST", func(t *testing.T) {
+		store.winCalls = []string{}
+
 		player := "Pepper"
 		request := newPostWinRequest(player)
 		response := httptest.NewRecorder()
@@ -64,6 +67,34 @@ func TestStoreWins(t *testing.T) {
 
 		if len(store.winCalls) != 1 {
 			t.Errorf("got %d calls to RecordWin want %d", len(store.winCalls), 1)
+		}
+
+		if store.winCalls[0] != player {
+			t.Errorf("did not store correct winner got %q want %q", store.winCalls[0], player)
+		}
+	})
+
+	t.Run("it runs safely concurrently", func(t *testing.T) {
+		store.winCalls = []string{}
+
+		player := "Pepper"
+		wantedCount := 50
+		var wg sync.WaitGroup
+		wg.Add(wantedCount)
+
+		for i := 0; i < wantedCount; i++ {
+			go func() {
+				request := newPostWinRequest(player)
+				response := httptest.NewRecorder()
+
+				server.ServeHTTP(response, request)
+				assertStatus(t, response.Code, http.StatusAccepted)
+				wg.Done()
+			}()
+		}
+		wg.Wait()
+		if len(store.winCalls) != 50 {
+			t.Errorf("got %d calls to RecordWin want %d", len(store.winCalls), 50)
 		}
 
 		if store.winCalls[0] != player {

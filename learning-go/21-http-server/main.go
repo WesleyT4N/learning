@@ -3,19 +3,10 @@ package main
 import (
 	"log"
 	"net/http"
+	"sync"
 )
 
-type InMemoryPlayerStore struct{}
-
-func (i *InMemoryPlayerStore) GetPlayerScore(name string) int {
-	return 123
-}
-
-func (i *InMemoryPlayerStore) RecordWin(name string) {
-}
-
 func main() {
-	store := &InMemoryPlayerStore{}
-	server := &PlayerServer{store}
+	server := &PlayerServer{NewInMemoryPlayerStore(), sync.Mutex{}}
 	log.Fatal(http.ListenAndServe(":5000", server))
 }

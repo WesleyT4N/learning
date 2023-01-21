@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 )
 
 type PlayerStore interface {
@@ -13,6 +14,7 @@ type PlayerStore interface {
 
 type PlayerServer struct {
 	store PlayerStore
+	mu    sync.Mutex
 }
 
 func GetPlayerScore(name string) string {
@@ -47,6 +49,8 @@ func (p *PlayerServer) showScore(w http.ResponseWriter, player string) {
 }
 
 func (p *PlayerServer) procoessWin(w http.ResponseWriter, player string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	p.store.RecordWin(player)
 	w.WriteHeader(http.StatusAccepted)
 }
