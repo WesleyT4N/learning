@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -9,10 +10,10 @@ import (
 
 func TestRecordingWinsAndRetrievingThem(t *testing.T) {
 	store := NewInMemoryPlayerStore()
-	server := PlayerServer{store, sync.Mutex{}}
+	server := NewPlayerServer(store)
 	player := "Pepper"
 
-	wantedCount := 50
+	wantedCount := 10
 	var wg sync.WaitGroup
 	wg.Add(wantedCount)
 
@@ -24,9 +25,24 @@ func TestRecordingWinsAndRetrievingThem(t *testing.T) {
 	}
 	wg.Wait()
 
-	response := httptest.NewRecorder()
-	server.ServeHTTP(response, newGetScoreRequest(player))
-	assertStatus(t, response.Code, http.StatusOK)
+	t.Run("get score", func(t *testing.T) {
+		response := httptest.NewRecorder()
+		server.ServeHTTP(response, newGetScoreRequest(player))
+		assertStatus(t, response.Code, http.StatusOK)
 
-	assertResponseBody(t, response.Body.String(), "50")
+		assertResponseBody(t, response.Body.String(), fmt.Sprint(wantedCount))
+	})
+
+	t.Run("get league", func(t *testing.T) {
+		response := httptest.NewRecorder()
+		server.ServeHTTP(response, newLeagueRequest())
+		assertStatus(t, response.Code, http.StatusOK)
+
+		got := getLeagueFromResponse(t, response.Body)
+		want := []Player{
+			{"Pepper", 10},
+		}
+
+		assertLeague(t, got, want)
+	})
 }
