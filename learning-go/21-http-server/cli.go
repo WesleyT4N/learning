@@ -4,34 +4,43 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
-	"time"
 )
 
 type CLI struct {
-	playerStore PlayerStore
-	in          *bufio.Scanner
-	out         io.Writer
-	alerter     BlindAlerter
+	in   *bufio.Scanner
+	out  io.Writer
+	game Game
 }
 
 const PlayerPrompt = "Please enter the number of players"
 
+const BadPlayerInputErrorMsg = "Invalid value received for number of players"
+
+const BadWinnerInputErrorMessage = "Invalid value received for winner"
+
 func (cli *CLI) PlayPoker() {
 	fmt.Fprintf(cli.out, PlayerPrompt)
-	cli.scheduleBlindAlerts()
-	userInput := cli.readLine()
-	cli.playerStore.RecordWin(extractWinner(userInput))
-}
 
-func (cli *CLI) scheduleBlindAlerts() {
-	blinds := []int{100, 200, 300, 400, 500, 600, 800, 1000, 2000, 4000, 8000}
-	blindTime := 0 * time.Second
+	numberOfPlayersInput := cli.readLine()
+	numberOfPlayers, err := strconv.Atoi(strings.Trim(numberOfPlayersInput, "\n"))
 
-	for _, blind := range blinds {
-		cli.alerter.ScheduleAlertAt(blindTime, blind)
-		blindTime = blindTime + 10*time.Minute
+	if err != nil {
+		fmt.Fprintf(cli.out, BadPlayerInputErrorMsg)
+		return
 	}
+
+	cli.game.Start(numberOfPlayers)
+
+	winnerInput := cli.readLine()
+	winner, err := extractWinner(winnerInput)
+	if err != nil {
+		fmt.Fprintf(cli.out, BadWinnerInputErrorMessage)
+		return
+	}
+
+	cli.game.Finish(winner)
 }
 
 func (cli *CLI) readLine() string {
@@ -39,15 +48,17 @@ func (cli *CLI) readLine() string {
 	return cli.in.Text()
 }
 
-func NewCLI(store PlayerStore, in io.Reader, out io.Writer, alerter BlindAlerter) *CLI {
+func NewCLI(in io.Reader, out io.Writer, game Game) *CLI {
 	return &CLI{
-		store,
 		bufio.NewScanner(in),
 		out,
-		alerter,
+		game,
 	}
 }
 
-func extractWinner(userInput string) string {
-	return strings.Replace(userInput, " wins", "", 1)
+func extractWinner(userInput string) (string, error) {
+	if !strings.Contains(userInput, " wins") {
+		return "", fmt.Errorf("Error occurred extracting winner")
+	}
+	return strings.Replace(userInput, " wins", "", 1), nil
 }
